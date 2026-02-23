@@ -71,6 +71,7 @@
             background: #ea580c; /* Orange */
             color: white;
             border: 2px solid #fdba74;
+            font-size: 3vh; /* Slightly larger for visibility */
         }
 
         #elimination-msg {
@@ -219,14 +220,14 @@ const COUNTRIES = [
 
 // Physics Constants
 const PHYSICS = {
-    gravityStart: 0.5, // Higher start gravity for faster gameplay
-    gravityInc: 0.05, // Rapidly increasing gravity
+    gravityStart: 0.35, // Balanced for ~25-30s rounds
+    gravityInc: 0.03, // Moderate increase
     friction: 0.99,
     wallFriction: 0.5,
     bounciness: 1.05,
-    maxVelocity: 40, // Higher max velocity
-    rotationSpeed: 0.06, // Faster rotation
-    gapSize: 65 * (Math.PI / 180), // Wider gap (65 degrees) to drain balls faster
+    maxVelocity: 35,
+    rotationSpeed: 0.05,
+    gapSize: 58 * (Math.PI / 180), // 58 degrees gap
     subSteps: 10
 };
 
@@ -336,7 +337,7 @@ class AudioController {
         
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.volume = 1.0; // Max volume
-        utterance.rate = 1.0;
+        utterance.rate = 1.1; // Slightly faster for excitement
         utterance.pitch = 1.0;
         if (this.voice) {
             utterance.voice = this.voice;
