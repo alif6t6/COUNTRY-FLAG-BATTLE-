@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Country Flag Battle Royale</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Roboto+Mono:wght@700&display=swap');
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            overflow: hidden;
+            font-family: 'Roboto Mono', monospace;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 56.25vh; /* 9:16 aspect ratio constraint based on height */
+            max-height: 100vh;
+            background: #050505;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlays */
+        .ui-badge {
+            position: absolute;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        #remain-badge {
+            top: 20px;
+            left: 20px;
+            background: #2563eb; /* Blue */
+            color: white;
+            border: 2px solid #60a5fa;
+        }
+
+        #round-badge {
+            top: 20px;
+            right: 20px;
+            background: #ea580c; /* Orange */
+            color: white;
+            border: 2px solid #fdba74;
+        }
+
+        #elimination-msg {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Black Ops One', cursive;
+            font-size: 28px;
+            color: #ef4444;
+            text-shadow: 0 0 10px #b91c1c;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            z-index: 20;
+            text-align: center;
+            width: 90%;
+        }
+
+        #winner-msg {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-family: 'Black Ops One', cursive;
+            font-size: 40px;
+            color: #fbbf24; /* Gold */
+            text-shadow: 0 0 20px #d97706, 0 0 40px #b45309;
+            text-align: center;
+            width: 100%;
+            z-index: 30;
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #elimination-trail {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-end;
+            gap: 4px;
+            pointer-events: none;
+            z-index: 5;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+        }
+
+        .trail-flag {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.3);
+            object-fit: cover;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        #start-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            cursor: pointer;
+        }
+
+        #start-overlay h1 {
+            font-family: 'Black Ops One', cursive;
+            font-size: 32px;
+            color: #3b82f6;
+            text-shadow: 0 0 15px #2563eb;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #start-overlay p {
+            font-size: 18px;
+            color: #ccc;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="simCanvas"></canvas>
+    
+    <div id="remain-badge">REMAIN: 60</div>
+    <div id="round-badge">ROUND: 1</div>
+    <div id="elimination-msg"></div>
+    <div id="winner-msg">WINNER</div>
+    <div id="elimination-trail"></div>
+
+    <div id="start-overlay">
+        <h1>FLAG BATTLE<br>ROYALE</h1>
+        <p>TAP TO START</p>
+    </div>
+</div>
+
+<script>
+/**
+ * CONFIGURATION & DATA
+ */
+const COUNTRIES = [
+    { code: 'us', name: 'United States' }, { code: 'cn', name: 'China' }, { code: 'ru', name: 'Russia' }, 
+    { code: 'de', name: 'Germany' }, { code: 'gb', name: 'United Kingdom' }, { code: 'fr', name: 'France' }, 
+    { code: 'jp', name: 'Japan' }, { code: 'kr', name: 'South Korea' }, { code: 'ca', name: 'Canada' }, 
+    { code: 'au', name: 'Australia' }, { code: 'it', name: 'Italy' }, { code: 'es', name: 'Spain' }, 
+    { code: 'sa', name: 'Saudi Arabia' }, { code: 'ae', name: 'UAE' }, { code: 'qa', name: 'Qatar' }, 
+    { code: 'ch', name: 'Switzerland' }, { code: 'se', name: 'Sweden' }, { code: 'no', name: 'Norway' }, 
+    { code: 'nl', name: 'Netherlands' }, { code: 'be', name: 'Belgium' }, { code: 'dk', name: 'Denmark' }, 
+    { code: 'fi', name: 'Finland' }, { code: 'at', name: 'Austria' }, { code: 'sg', name: 'Singapore' }, 
+    { code: 'nz', name: 'New Zealand' }, { code: 'ie', name: 'Ireland' }, { code: 'pl', name: 'Poland' }, 
+    { code: 'tr', name: 'Turkey' }, { code: 'mx', name: 'Mexico' }, { code: 'br', name: 'Brazil' }, 
+    { code: 'ar', name: 'Argentina' }, { code: 'za', name: 'South Africa' }, { code: 'eg', name: 'Egypt' }, 
+    { code: 'il', name: 'Israel' }, { code: 'gr', name: 'Greece' }, { code: 'pt', name: 'Portugal' }, 
+    { code: 'cz', name: 'Czech Republic' }, { code: 'hu', name: 'Hungary' }, { code: 'ro', name: 'Romania' }, 
+    { code: 'my', name: 'Malaysia' }, { code: 'th', name: 'Thailand' }, { code: 'vn', name: 'Vietnam' }, 
+    { code: 'ph', name: 'Philippines' }, { code: 'id', name: 'Indonesia' }, { code: 'co', name: 'Colombia' }, 
+    { code: 'pe', name: 'Peru' }, { code: 'cl', name: 'Chile' }, { code: 'kz', name: 'Kazakhstan' }, 
+    { code: 'kw', name: 'Kuwait' }, { code: 'om', name: 'Oman' }, { code: 'bh', name: 'Bahrain' }, 
+    { code: 'lu', name: 'Luxembourg' }, { code: 'mc', name: 'Monaco' }, { code: 'ad', name: 'Andorra' }, 
+    { code: 'sm', name: 'San Marino' }, { code: 'li', name: 'Liechtenstein' }, { code: 'mt', name: 'Malta' }, 
+    { code: 'is', name: 'Iceland' }, { code: 'cy', name: 'Cyprus' }, { code: 'ee', name: 'Estonia' }
+];
+
+// Physics Constants
+const PHYSICS = {
+    gravityStart: 0.5, // Higher start gravity for faster gameplay
+    gravityInc: 0.05, // Rapidly increasing gravity
+    friction: 0.99,
+    wallFriction: 0.5,
+    bounciness: 1.05,
+    maxVelocity: 40, // Higher max velocity
+    rotationSpeed: 0.06, // Faster rotation
+    gapSize: 65 * (Math.PI / 180), // Wider gap (65 degrees) to drain balls faster
+    subSteps: 10
+};
+
+/**
+ * AUDIO SYSTEM
+ */
+class AudioController {
+    constructor() {
+        this.ctx = null;
+        this.enabled = false;
+        this.voice = null;
+        
+        // Initialize voice loading immediately
+        this.loadVoices();
+        if (window.speechSynthesis) {
+            window.speechSynthesis.onvoiceschanged = () => this.loadVoices();
+        }
+    }
+
+    loadVoices() {
+        if (!window.speechSynthesis) return;
+        const voices = window.speechSynthesis.getVoices();
+        // Prefer female voices or specific high-quality ones
+        this.voice = voices.find(v => 
+            v.name.includes('Google US English') || 
+            v.name.includes('Samantha') || 
+            v.name.includes('Female')
+        ) || voices[0];
+    }
+
+    init() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.enabled = true;
+        }
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+        // Try loading voices again just in case
+        this.loadVoices();
+    }
+
+    playPop() {
+        if (!this.enabled) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400 + Math.random() * 200, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+    }
+
+    playSwoosh() {
+        if (!this.enabled) return;
+        const bufferSize = this.ctx.sampleRate * 0.5;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.4);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    }
+
+    playChime() {
+        if (!this.enabled) return;
+        const freqs = [523.25, 659.25, 783.99, 1046.50]; // C major chord
+        const now = this.ctx.currentTime;
+        freqs.forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = f;
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.1, now + 0.05 + i * 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + i * 0.05);
+            osc.stop(now + 2.5);
+        });
+    }
+
+    speak(text, force = false) {
+        if (!this.enabled) return;
+        
+        // If forced (like winner), cancel current speech
+        if (force) {
+            window.speechSynthesis.cancel();
+        }
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        if (this.voice) {
+            utterance.voice = this.voice;
+        }
+
+        window.speechSynthesis.speak(utterance);
+    }
+}
+
+/**
+ * GAME ENGINE
+ */
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('simCanvas');
+        this.ctx = this.canvas.getContext('2d', { alpha: false });
+        this.width = 0;
+        this.height = 0;
+        this.balls = [];
+        this.eliminated = [];
+        this.round = 1;
+        this.frame = 0;
+        this.arenaRotation = 0;
+        this.gravity = PHYSICS.gravityStart;
+        this.state = 'WAITING'; // WAITING, PLAYING, WINNER
+        this.audio = new AudioController();
+        this.images = {};
+        this.winner = null;
+        this.winTimer = 0;
+        this.lastCommentTime = 0;
+
+        this.ui = {
+            remain: document.getElementById('remain-badge'),
+            round: document.getElementById('round-badge'),
+            elimMsg: document.getElementById('elimination-msg'),
+            winnerMsg: document.getElementById('winner-msg'),
+            trail: document.getElementById('elimination-trail'),
+            overlay: document.getElementById('start-overlay')
+        };
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        this.ui.overlay.addEventListener('click', () => this.start());
+        
+        // Preload images
+        this.loadImages();
+    }
+
+    loadImages() {
+        COUNTRIES.forEach(c => {
+            const img = new Image();
+            img.src = `https://flagcdn.com/w80/${c.code}.png`;
+            this.images[c.code] = img;
+        });
+    }
+
+    resize() {
+        const container = document.getElementById('game-container');
+        this.width = container.clientWidth;
+        this.height = container.clientHeight;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        this.arenaRadius = this.width * 0.42;
+        this.arenaCenter = { x: this.width / 2, y: this.height / 2 };
+        this.ballRadius = this.width * 0.035; // Responsive ball size
+    }
+
+    start() {
+        if (this.state !== 'WAITING') return;
+        this.audio.init();
+        this.ui.overlay.style.display = 'none';
+        this.resetRound();
+        this.loop();
+    }
+
+    resetRound() {
+        this.state = 'PLAYING';
+        this.balls = [];
+        this.eliminated = [];
+        this.ui.trail.innerHTML = '';
+        this.ui.winnerMsg.style.transform = 'translate(-50%, -50%) scale(0)';
+        this.gravity = PHYSICS.gravityStart;
+        this.arenaRotation = 0;
+        this.frame = 0;
+        this.lastCommentTime = Date.now();
+        this.winner = null;
+        this.announcedCounts = new Set(); // Track announced counts
+
+        // Shuffle countries
+        const shuffled = [...COUNTRIES].sort(() => Math.random() - 0.5);
+
+        // Spawn balls in a grid/circle pattern to avoid instant collision
+        const cols = 6;
+        const spacing = this.ballRadius * 2.2;
+        const startX = this.arenaCenter.x - (cols * spacing) / 2;
+        const startY = this.arenaCenter.y - (10 * spacing) / 2;
+
+        shuffled.forEach((country, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            this.balls.push({
+                x: startX + col * spacing + (Math.random() * 10 - 5),
+                y: startY + row * spacing + (Math.random() * 10 - 5),
+                vx: Math.random() * 4 - 2,
+                vy: Math.random() * 4 - 2,
+                country: country,
+                radius: this.ballRadius,
+                active: true
+            });
+        });
+
+        this.updateUI();
+        
+        // Sequence: "New round start" -> "Comment your country name"
+        this.audio.speak("New round start", true);
+        this.audio.speak("Comment your country name");
+    }
+
+    updateUI() {
+        this.ui.remain.textContent = `REMAIN: ${this.balls.length}`;
+        this.ui.round.textContent = `ROUND: ${this.round}`;
+    }
+
+    showElimination(country) {
+        this.ui.elimMsg.textContent = `${country.name.toUpperCase()} OUT!`;
+        this.ui.elimMsg.style.opacity = 1;
+        this.ui.elimMsg.style.transform = 'translateX(-50%) scale(1.2)';
+        
+        setTimeout(() => {
+            this.ui.elimMsg.style.transform = 'translateX(-50%) scale(1)';
+        }, 100);
+
+        setTimeout(() => {
+            this.ui.elimMsg.style.opacity = 0;
+        }, 1500);
+
+        // Add to trail
+        const img = document.createElement('img');
+        img.src = `https://flagcdn.com/w80/${country.code}.png`;
+        img.className = 'trail-flag';
+        this.ui.trail.appendChild(img);
+        
+        this.audio.playSwoosh();
+    }
+
+    updatePhysics() {
+        // Increase gravity slightly over time to ensure game ends
+        if (this.frame % 60 === 0) {
+            this.gravity += PHYSICS.gravityInc; 
+        }
+
+        // Arena Rotation
+        this.arenaRotation += PHYSICS.rotationSpeed;
+
+        // Sub-steps for stability
+        const dt = 1 / PHYSICS.subSteps;
+        
+        for (let step = 0; step < PHYSICS.subSteps; step++) {
+            this.balls.forEach(ball => {
+                if (!ball.active) return;
+
+                // Gravity
+                ball.vy += this.gravity * dt;
+                
+                // Air Friction
+                ball.vx *= Math.pow(PHYSICS.friction, dt);
+                ball.vy *= Math.pow(PHYSICS.friction, dt);
+
+                // Move
+                ball.x += ball.vx * dt;
+                ball.y += ball.vy * dt;
+
+                // Arena Collision (The Washing Machine)
+                const dx = ball.x - this.arenaCenter.x;
+                const dy = ball.y - this.arenaCenter.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Check if ball is hitting the boundary wall
+                if (dist + ball.radius > this.arenaRadius) {
+                    let angle = Math.atan2(dy, dx);
+                    // Normalize angle to [0, 2PI)
+                    let relAngle = angle - this.arenaRotation;
+                    while (relAngle < 0) relAngle += Math.PI * 2;
+                    while (relAngle >= Math.PI * 2) relAngle -= Math.PI * 2;
+
+                    // Gap is at the bottom (PI/2) in the rotated frame
+                    const gapCenter = Math.PI / 2;
+                    const halfGap = PHYSICS.gapSize / 2;
+                    
+                    let inGap = false;
+                    // Check if angle is within gap
+                    if (relAngle > gapCenter - halfGap && relAngle < gapCenter + halfGap) {
+                        inGap = true;
+                    }
+
+                    if (!inGap) {
+                        // Collision with wall
+                        // Push out
+                        const overlap = (dist + ball.radius) - this.arenaRadius;
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+                        
+                        ball.x -= nx * overlap;
+                        ball.y -= ny * overlap;
+
+                        // Reflect velocity
+                        const dot = ball.vx * nx + ball.vy * ny;
+                        ball.vx -= 2 * dot * nx;
+                        ball.vy -= 2 * dot * ny;
+
+                        // Add wall energy (bounce)
+                        ball.vx *= PHYSICS.bounciness;
+                        ball.vy *= PHYSICS.bounciness;
+
+                        // Add rotational friction (spin impart)
+                        // Tangent vector
+                        const tx = -ny;
+                        const ty = nx;
+                        
+                        // Wall velocity at this point
+                        // Just add a kick in the tangent direction
+                        ball.vx += tx * PHYSICS.wallFriction * 2;
+                        ball.vy += ty * PHYSICS.wallFriction * 2;
+
+                        // Cap velocity
+                        const v = Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy);
+                        if (v > PHYSICS.maxVelocity) {
+                            ball.vx = (ball.vx / v) * PHYSICS.maxVelocity;
+                            ball.vy = (ball.vy / v) * PHYSICS.maxVelocity;
+                        }
+                    }
+                }
+            });
+
+            // Ball-Ball Collision
+            for (let i = 0; i < this.balls.length; i++) {
+                for (let j = i + 1; j < this.balls.length; j++) {
+                    const b1 = this.balls[i];
+                    const b2 = this.balls[j];
+                    if (!b1.active || !b2.active) continue;
+
+                    const dx = b2.x - b1.x;
+                    const dy = b2.y - b1.y;
+                    const distSq = dx * dx + dy * dy;
+                    const radSum = b1.radius + b2.radius;
+
+                    if (distSq < radSum * radSum && distSq > 0) {
+                        const dist = Math.sqrt(distSq);
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+                        const overlap = radSum - dist;
+
+                        // Separate
+                        const totalMass = 2; // Assume equal mass
+                        const m1 = 1;
+                        const m2 = 1;
+
+                        b1.x -= nx * overlap * (m2 / totalMass);
+                        b1.y -= ny * overlap * (m2 / totalMass);
+                        b2.x += nx * overlap * (m1 / totalMass);
+                        b2.y += ny * overlap * (m1 / totalMass);
+
+                        // Bounce
+                        const dvx = b2.vx - b1.vx;
+                        const dvy = b2.vy - b1.vy;
+                        const velAlongNormal = dvx * nx + dvy * ny;
+
+                        if (velAlongNormal < 0) {
+                            const restitution = 0.9; // Ball-ball restitution
+                            const jVal = -(1 + restitution) * velAlongNormal;
+                            const impulse = jVal / (1/m1 + 1/m2);
+                            
+                            b1.vx -= impulse * (1/m1) * nx;
+                            b1.vy -= impulse * (1/m1) * ny;
+                            b2.vx += impulse * (1/m2) * nx;
+                            b2.vy += impulse * (1/m2) * ny;
+
+                            // Audio trigger (throttled)
+                            if (Math.abs(impulse) > 1 && Math.random() > 0.8) {
+                                this.audio.playPop();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check Eliminations
+        for (let i = this.balls.length - 1; i >= 0; i--) {
+            const ball = this.balls[i];
+            if (ball.y - ball.radius > this.height) {
+                this.showElimination(ball.country);
+                this.eliminated.push(ball.country);
+                this.balls.splice(i, 1);
+                this.updateUI();
+
+                // Specific announcements for 30, 20, 15, 10, 5
+                const count = this.balls.length;
+                if ([30, 20, 15, 10, 5].includes(count) && !this.announcedCounts.has(count)) {
+                    this.audio.speak(`Final ${count} country in circle`, true);
+                    this.announcedCounts.add(count);
+                }
+            }
+        }
+    }
+
+    draw() {
+        // Clear background
+        this.ctx.fillStyle = '#050505';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Draw Arena
+        this.ctx.save();
+        this.ctx.translate(this.arenaCenter.x, this.arenaCenter.y);
+        this.ctx.rotate(this.arenaRotation);
+        
+        this.ctx.beginPath();
+        // Draw arc excluding the gap
+        // Gap is at PI/2 (bottom) with width gapSize
+        const startAngle = Math.PI / 2 + PHYSICS.gapSize / 2;
+        const endAngle = Math.PI / 2 - PHYSICS.gapSize / 2;
+        
+        this.ctx.arc(0, 0, this.arenaRadius, startAngle, endAngle);
+        this.ctx.lineWidth = 15;
+        this.ctx.strokeStyle = '#3b82f6'; // Blue glow
+        this.ctx.shadowBlur = 20;
+        this.ctx.shadowColor = '#2563eb';
+        this.ctx.stroke();
+        
+        // Draw gap indicators (edges)
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#ef4444';
+        const gapX1 = Math.cos(startAngle) * this.arenaRadius;
+        const gapY1 = Math.sin(startAngle) * this.arenaRadius;
+        const gapX2 = Math.cos(endAngle) * this.arenaRadius;
+        const gapY2 = Math.sin(endAngle) * this.arenaRadius;
+        
+        this.ctx.beginPath();
+        this.ctx.arc(gapX1, gapY1, 8, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.arc(gapX2, gapY2, 8, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        this.ctx.restore();
+
+        // Draw Balls
+        this.balls.forEach(ball => {
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            this.ctx.clip();
+            
+            const img = this.images[ball.country.code];
+            if (img && img.complete) {
+                this.ctx.drawImage(img, ball.x - ball.radius, ball.y - ball.radius, ball.radius * 2, ball.radius * 2);
+            } else {
+                this.ctx.fillStyle = '#fff';
+                this.ctx.fill();
+            }
+            
+            // Shine effect
+            this.ctx.beginPath();
+            this.ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            this.ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+            
+            this.ctx.restore();
+        });
+    }
+
+    handleWinner() {
+        const winnerBall = this.balls[0];
+        this.winner = winnerBall.country;
+        this.state = 'WINNER';
+        
+        // Stop physics for this ball
+        winnerBall.active = false;
+        
+        // Animate to center
+        winnerBall.x = this.arenaCenter.x;
+        winnerBall.y = this.arenaCenter.y;
+        winnerBall.radius = this.ballRadius * 2.5;
+
+        // UI
+        this.ui.winnerMsg.textContent = `WINNER:\n${this.winner.name.toUpperCase()}`;
+        this.ui.winnerMsg.style.transform = 'translate(-50%, -50%) scale(1)';
+        
+        // Audio
+        this.audio.playChime();
+        this.audio.speak(`${this.winner.name} WIN!`, true);
+
+        // Timer for restart
+        setTimeout(() => {
+            this.round++;
+            this.resetRound();
+        }, 3000);
+    }
+
+    loop() {
+        if (this.state === 'WAITING') return;
+
+        requestAnimationFrame(() => this.loop());
+        this.frame++;
+
+        if (this.state === 'PLAYING') {
+            this.updatePhysics();
+            
+            // Check Win Condition
+            if (this.balls.length === 1) {
+                this.handleWinner();
+            }
+        }
+
+        this.draw();
+    }
+}
+
+// Initialize
+window.onload = () => {
+    const game = new Game();
+};
+
+</script>
+</body>
+</html>
