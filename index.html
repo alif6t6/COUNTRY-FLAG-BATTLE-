@@ -90,6 +90,7 @@
             z-index: 20;
             text-align: center;
             width: 90%;
+            will-change: transform, opacity;
         }
 
         #winner-msg {
@@ -105,6 +106,7 @@
             width: 100%;
             z-index: 30;
             transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            will-change: transform;
         }
 
         #elimination-trail {
@@ -228,7 +230,7 @@ const PHYSICS = {
     maxVelocity: 35,
     rotationSpeed: 0.05,
     gapSize: 58 * (Math.PI / 180), // 58 degrees gap
-    subSteps: 10
+    subSteps: 6 // Optimized for mobile (was 10)
 };
 
 /**
@@ -431,7 +433,7 @@ class Game {
         this.height = container.clientHeight;
         
         // Handle High DPI
-        const dpr = Math.min(window.devicePixelRatio || 1, 3); // Cap at 3x
+        const dpr = Math.min(window.devicePixelRatio || 1, 2); // Cap at 2x for performance
         this.canvas.width = this.width * dpr;
         this.canvas.height = this.height * dpr;
         this.ctx.scale(dpr, dpr);
@@ -515,6 +517,11 @@ class Game {
         img.src = `https://flagcdn.com/w80/${country.code}.png`;
         img.className = 'trail-flag';
         this.ui.trail.appendChild(img);
+        
+        // Limit trail items to 12 to prevent DOM bloat
+        if (this.ui.trail.children.length > 12) {
+            this.ui.trail.removeChild(this.ui.trail.firstChild);
+        }
         
         this.audio.playSwoosh();
     }
