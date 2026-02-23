@@ -276,8 +276,8 @@ class AudioController {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(400 + Math.random() * 200, this.ctx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.05, this.ctx.currentTime); // Reduced from 0.1
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
         osc.connect(gain);
         gain.connect(this.ctx.destination);
         osc.start();
@@ -299,8 +299,8 @@ class AudioController {
         filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
         filter.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.4);
         const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.05, this.ctx.currentTime); // Reduced from 0.2
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.4);
         noise.connect(filter);
         filter.connect(gain);
         gain.connect(this.ctx.destination);
@@ -317,7 +317,7 @@ class AudioController {
             osc.type = 'sine';
             osc.frequency.value = f;
             gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.1, now + 0.05 + i * 0.05);
+            gain.gain.linearRampToValueAtTime(0.05, now + 0.05 + i * 0.05); // Reduced from 0.1
             gain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
             osc.connect(gain);
             gain.connect(this.ctx.destination);
@@ -335,6 +335,7 @@ class AudioController {
         }
         
         const utterance = new SpeechSynthesisUtterance(text);
+        utterance.volume = 1.0; // Max volume
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
         if (this.voice) {
