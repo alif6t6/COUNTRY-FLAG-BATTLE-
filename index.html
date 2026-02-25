@@ -471,7 +471,14 @@ class Game {
         const requestFullScreen = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
         
         if (requestFullScreen) {
-            requestFullScreen.call(docEl).catch(err => {
+            requestFullScreen.call(docEl).then(() => {
+                // Attempt to lock orientation to portrait
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('portrait').catch(err => {
+                        console.log("Orientation lock failed: ", err);
+                    });
+                }
+            }).catch(err => {
                 console.log("Error attempting to enable full-screen mode:", err.message);
             });
         }
