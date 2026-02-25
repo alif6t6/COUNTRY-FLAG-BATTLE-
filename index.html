@@ -289,15 +289,15 @@ const COUNTRIES = [
 
 // Physics Constants
 const PHYSICS = {
-    gravityStart: 0.35, // Balanced for ~25-30s rounds
-    gravityInc: 0.03, // Moderate increase
+    gravityStart: 0.28, // Reduced to extend round duration
+    gravityInc: 0.015, // Slower gravity increase
     friction: 0.99,
     wallFriction: 0.5,
     bounciness: 1.05,
     maxVelocity: 35,
-    rotationSpeed: 0.05,
-    gapSize: 58 * (Math.PI / 180), // 58 degrees gap
-    subSteps: 6 // Optimized for mobile (was 10)
+    rotationSpeed: 0.045, // Slightly slower rotation
+    gapSize: 52 * (Math.PI / 180), // Reduced gap size (52 deg) to keep balls in longer
+    subSteps: 6 // Optimized for mobile
 };
 
 /**
