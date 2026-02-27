@@ -462,18 +462,42 @@ class Game {
 
     loadImages() {
         COUNTRIES.forEach(c => {
-            const img = new Image();
-            img.src = `https://flagcdn.com/w160/${c.code}.png`; // Higher quality
-            img.onload = () => {
-                this.cacheFlag(c.code, img);
-            };
-            this.images[c.code] = img;
+            this.loadImageWithRetry(c, 0);
         });
     }
 
-    cacheFlag(code, img) {
-        // Create a cached circular version of the flag
-        const size = 128; // Fixed cache size, large enough for most screens
+    loadImageWithRetry(country, attempt) {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = `https://flagcdn.com/w160/${country.code}.png`;
+        
+        img.onload = () => {
+            if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                this.images[country.code] = img;
+                this.cacheFlag(country.code, img);
+            } else {
+                this.handleImageError(country, attempt);
+            }
+        };
+
+        img.onerror = () => {
+            this.handleImageError(country, attempt);
+        };
+    }
+
+    handleImageError(country, attempt) {
+        if (attempt < 3) {
+            setTimeout(() => {
+                this.loadImageWithRetry(country, attempt + 1);
+            }, 1000 * Math.pow(2, attempt));
+        } else {
+            console.warn(`Failed to load flag for ${country.name}`);
+            this.createFallbackFlag(country.code);
+        }
+    }
+
+    createFallbackFlag(code) {
+        const size = 128;
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
@@ -481,10 +505,15 @@ class Game {
         
         ctx.beginPath();
         ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.drawImage(img, 0, 0, size, size);
+        ctx.fillStyle = this.getColorFromCode(code);
+        ctx.fill();
         
-        // Bake in the shine/border
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 40px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(code.toUpperCase(), size/2, size/2);
+        
         ctx.beginPath();
         ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
@@ -492,6 +521,41 @@ class Game {
         ctx.stroke();
 
         this.flagCache[code] = canvas;
+    }
+
+    getColorFromCode(code) {
+        let hash = 0;
+        for (let i = 0; i < code.length; i++) {
+            hash = code.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+        return '#' + '00000'.substring(0, 6 - c.length) + c;
+    }
+
+    cacheFlag(code, img) {
+        try {
+            const size = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(img, 0, 0, size, size);
+            
+            ctx.beginPath();
+            ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            this.flagCache[code] = canvas;
+        } catch (e) {
+            console.error("Error caching flag:", e);
+            this.createFallbackFlag(code);
+        }
     }
 
     resize() {
@@ -845,8 +909,13 @@ class Game {
                 if (img && img.complete) {
                     this.ctx.drawImage(img, ball.x - ball.radius, ball.y - ball.radius, ball.radius * 2, ball.radius * 2);
                 } else {
-                    this.ctx.fillStyle = '#fff';
+                    this.ctx.fillStyle = this.getColorFromCode(ball.country.code);
                     this.ctx.fill();
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    this.ctx.font = 'bold 12px monospace';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText(ball.country.code.toUpperCase(), ball.x, ball.y);
                 }
                 this.ctx.restore();
             }
